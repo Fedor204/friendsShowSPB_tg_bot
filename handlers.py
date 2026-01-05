@@ -67,7 +67,7 @@ def calculate_match_score(message_text: str, keywords: list) -> float:
         else:
             keyword_roots = extract_word_roots(keyword_normalized)
             if keyword_roots:
-                matching_roots = message_roots.intersection(keyword_roots)
+                matching_roots = message_roots. intersection(keyword_roots)
                 score = len(matching_roots) / len(keyword_roots)
 
         max_score = max(max_score, score)
@@ -75,10 +75,10 @@ def calculate_match_score(message_text: str, keywords: list) -> float:
     return max_score
 
 
-def find_auto_reply(message_text: str, threshold: float = 0.5) -> str:
+def find_auto_reply(message_text: str, threshold: float = 0.4) -> str:
     """
     Ищет подходящий автоответ по ключевым словам
-    threshold - минимальный порог совпадения (0.5 = 50%)
+    threshold - минимальный порог совпадения (0.4 = 40%)
     """
     best_match = None
     best_score = 0
@@ -98,7 +98,7 @@ def find_auto_reply(message_text: str, threshold: float = 0.5) -> str:
     return None
 
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_command(update: Update, context:  ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
     user = update.effective_user
 
@@ -113,12 +113,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
     if db.is_manager(user.id):
-        await update.message.reply_text(
+        await update.message. reply_text(
             f"👋 Добро пожаловать, менеджер {user.first_name}!\n\n{MANAGER_COMMANDS}"
         )
     else:
         # Отправляем приветственное сообщение с именем пользователя
-        welcome_text = WELCOME_MESSAGE. format(first_name=user. first_name or "друг")
+        welcome_text = WELCOME_MESSAGE.format(first_name=user.first_name or "друг")
         await update.message.reply_text(
             welcome_text,
             parse_mode=ParseMode.HTML
@@ -134,16 +134,16 @@ async def add_manager_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     if not context.args or len(context.args) != 1:
-        await update.message. reply_text("❌ Использование: /add_manager @username")
+        await update. message.reply_text("❌ Использование: /add_manager @username")
         return
 
-    username = context.args[0].lstrip("@")
+    username = context.args[0]. lstrip("@")
 
     # Проверяем, есть ли уже такой менеджер
     managers = db.get_all_managers()
     for manager_id, manager_username in managers:
         if manager_username == username:
-            await update.message. reply_text(f"⚠️ Менеджер @{username} уже добавлен!")
+            await update.message.reply_text(f"⚠️ Менеджер @{username} уже добавлен!")
             return
 
     await update.message.reply_text(
@@ -154,25 +154,25 @@ async def add_manager_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def remove_manager_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Удалить менеджера (только для менеджеров)"""
-    user = update. effective_user
+    user = update.effective_user
 
     if not db.is_manager(user.id):
-        await update. message.reply_text("❌ У вас нет прав для этой команды.")
+        await update.message. reply_text("❌ У вас нет прав для этой команды.")
         return
 
     if not context.args or len(context.args) != 1:
-        await update.message.reply_text("❌ Использование: /remove_manager @username")
+        await update. message.reply_text("❌ Использование: /remove_manager @username")
         return
 
     username = context.args[0].lstrip("@")
 
     if db.remove_manager(username):
-        await update.message. reply_text(f"✅ Менеджер @{username} успешно удален.")
+        await update.message.reply_text(f"✅ Менеджер @{username} успешно удален.")
     else:
         await update.message.reply_text(f"❌ Менеджер @{username} не найден.")
 
 
-async def list_managers_command(update: Update, context:  ContextTypes.DEFAULT_TYPE):
+async def list_managers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показать список всех менеджеров (только для менеджеров)"""
     user = update.effective_user
 
@@ -228,6 +228,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Если сообщение от обычного пользователя
     else:
+        # Проверяем, первое ли это сообщение от пользователя
+        is_first = db.is_first_message(user.id)
+
         # Проверяем на ключевые слова для автоответов
         auto_reply_text = find_auto_reply(message.text, threshold=0.4)
         auto_reply_sent = False
@@ -237,7 +240,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             auto_reply_sent = True
 
         # Формируем сообщение для менеджеров
-        user_info = f"👤 Новое сообщение от пользователя:\n\n"
+        user_info = f"👤 {'🆕 НОВЫЙ пользователь' if is_first else 'Сообщение от пользователя'}:\n\n"
         user_info += f"Имя: {user.first_name or 'Не указано'}"
         if user.last_name:
             user_info += f" {user.last_name}"
@@ -252,10 +255,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         managers = db.get_all_managers()
 
         if not managers:
-            # Если нет менеджеров в базе, отправляем предупреждение
-            await message.reply_text(
-                "⚠️ Ваше сообщение получено, но в системе пока нет активных менеджеров.\n"
-                "Пожалуйста, попробуйте позже."
+            # Если нет менеджеров - показываем ошибку
+            await message. reply_text(
+                "⚠️ К сожалению, сейчас нет доступных менеджеров.  Пожалуйста, попробуйте позже."
             )
             return
 
@@ -272,13 +274,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 print(f"Ошибка отправки менеджеру @{manager_username}: {e}")
 
-        # Подтверждение пользователю
-        if sent_count > 0:
-            if not auto_reply_sent:
-                await message.reply_text(
-                    "✅ Ваше сообщение получено!  Наши менеджеры ответят вам в ближайшее время."
-                )
-        else:
+        # Подтверждение пользователю ТОЛЬКО при первом сообщении или ошибке
+        if sent_count == 0:
+            # Ошибка - ни одному менеджеру не отправилось
             await message.reply_text(
-                "⚠️ Произошла ошибка при отправке сообщения менеджерам.  Пожалуйста, попробуйте позже."
+                "⚠️ Произошла ошибка при отправке сообщения.  Пожалуйста, попробуйте позже или напишите нам напрямую."
             )
+        elif is_first and not auto_reply_sent:
+            # Только первое сообщение и нет автоответа
+            await message.reply_text(
+                "✅ Ваше сообщение получено!  Наши менеджеры ответят вам в ближайшее время."
+            )
+        # В остальных случаях - молчим (не спамим)

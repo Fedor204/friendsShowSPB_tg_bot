@@ -20,7 +20,7 @@ class Database:
             cursor = conn.cursor()
 
             # Таблица менеджеров
-            cursor.execute("""
+            cursor. execute("""
                 CREATE TABLE IF NOT EXISTS managers (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER UNIQUE NOT NULL,
@@ -40,13 +40,23 @@ class Database:
                 )
             """)
 
+            # Таблица пользователей (отслеживаем первое сообщение)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER UNIQUE NOT NULL,
+                    first_message_sent BOOLEAN DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             conn.commit()
 
-    def add_manager(self, user_id: int, username: str) -> bool:
+    def add_manager(self, user_id:  int, username: str) -> bool:
         """Добавить менеджера"""
         try:
             with sqlite3.connect(self.db_name) as conn:
-                cursor = conn.cursor()
+                cursor = conn. cursor()
                 cursor.execute(
                     "INSERT INTO managers (user_id, username) VALUES (?, ?)",
                     (user_id, username)
@@ -88,16 +98,32 @@ class Database:
             )
             conn.commit()
 
-    def get_user_by_message(self, manager_message_id: int, manager_chat_id: int) -> Optional[int]:
+    def get_user_by_message(self, manager_message_id:  int, manager_chat_id: int) -> Optional[int]:
         """Получить ID пользователя по сообщению менеджера"""
-        with sqlite3.connect(self.db_name) as conn:
+        with sqlite3.connect(self. db_name) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT user_id FROM message_mapping WHERE manager_message_id = ? AND manager_chat_id = ?",
+                "SELECT user_id FROM message_mapping WHERE manager_message_id = ?  AND manager_chat_id = ? ",
                 (manager_message_id, manager_chat_id)
             )
             result = cursor.fetchone()
             return result[0] if result else None
+
+    def is_first_message(self, user_id: int) -> bool:
+        """Проверить, первое ли это сообщение от пользователя"""
+        with sqlite3.connect(self.db_name) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT first_message_sent FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+
+            if result is None:
+                # Пользователь новый - добавляем его
+                cursor.execute("INSERT INTO users (user_id, first_message_sent) VALUES (?, 1)", (user_id,))
+                conn.commit()
+                return True
+            else:
+                # Пользователь уже писал
+                return False
 
 
 # Глобальный экземпляр базы данных
