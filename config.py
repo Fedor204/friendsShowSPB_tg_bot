@@ -4,10 +4,10 @@
 import os
 
 # Токен бота
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8457152762:AAGhIeUE6grZ4umwbkPyfwffEhN24-CiCrs")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # Начальные менеджеры (username без @)
-INITIAL_MANAGERS_STR = os.getenv("INITIAL_MANAGERS", "daniil_event,Nika_kudlash")
+INITIAL_MANAGERS_STR = os.getenv("INITIAL_MANAGERS")
 INITIAL_MANAGERS = [m.strip() for m in INITIAL_MANAGERS_STR.split(",")]
 
 # База данных
