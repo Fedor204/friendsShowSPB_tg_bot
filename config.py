@@ -2,12 +2,15 @@
 Конфигурация бота
 """
 import os
+from dotenv import load_dotenv
 
+load_dotenv()
 # Токен бота
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 
 # Начальные менеджеры (username без @)
 INITIAL_MANAGERS_STR = os.getenv("INITIAL_MANAGERS")
+print(INITIAL_MANAGERS_STR, BOT_TOKEN)
 INITIAL_MANAGERS = [m.strip() for m in INITIAL_MANAGERS_STR.split(",")]
 
 # База данных
