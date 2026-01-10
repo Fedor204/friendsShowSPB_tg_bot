@@ -55,7 +55,7 @@ def calculate_match_score(message_text: str, keywords: list) -> float:
         else:
             keyword_roots = extract_word_roots(keyword_normalized)
             if keyword_roots:
-                matching_roots = message_roots. intersection(keyword_roots)
+                matching_roots = message_roots.intersection(keyword_roots)
                 score = len(matching_roots) / len(keyword_roots)
 
         max_score = max(max_score, score)
@@ -63,8 +63,8 @@ def calculate_match_score(message_text: str, keywords: list) -> float:
     return max_score
 
 
-def find_auto_reply(message_text: str, threshold: float = 0.4) -> str:
-    """Ищет подходящий автоответ по ключевым словам"""
+def find_auto_reply(message_text: str, threshold: float = 0.4) -> Optional[str]:
+    """Ищет подходящий автоответ по ключевым словам.  Возвращает текст ответа или None"""
     best_match = None
     best_score = 0
 
@@ -86,21 +86,23 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
     user = update.effective_user
 
-    # Автоматически добавляем начальных менеджеров при первом /start
+    # Автоматически добавляем начальных менеджеров
     if user.username and user.username in INITIAL_MANAGERS:
         if not db.is_manager(user.id):
             success = db.add_manager(user.id, user.username)
             if success:
                 await update.message.reply_text(
                     f"✅ Вы автоматически добавлены как менеджер!\n\n"
-                    f"👋 Добро пожаловать, {user.first_name}!\n\n{MANAGER_COMMANDS}"
+                    f"👋 Добро пожаловать, {user.first_name}!\n\n{MANAGER_COMMANDS}",
+                    parse_mode=ParseMode.HTML
                 )
                 return
 
     # Если уже менеджер
     if db.is_manager(user.id):
-        await update.message. reply_text(
-            f"👋 С возвращением, {user.first_name}!\n\n{MANAGER_COMMANDS}"
+        await update.message.reply_text(
+            f"👋 С возвращением, {user.first_name}!\n\n{MANAGER_COMMANDS}",
+            parse_mode=ParseMode. HTML
         )
     else:
         # Обычный пользователь
@@ -112,18 +114,16 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_manager_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Добавить нового менеджера - УПРОЩЕННАЯ ВЕРСИЯ"""
+    """Добавить нового менеджера"""
     user = update.effective_user
 
-    # Проверяем права
     if not db.is_manager(user.id):
         await update.message.reply_text("❌ У вас нет прав для этой команды.")
         return
 
-    # Проверяем аргументы
     if not context.args or len(context.args) != 1:
         await update.message. reply_text(
-            "❌ Использование:   /add_manager @username\n\n"
+            "❌ Использование: /add_manager @username\n\n"
             "Попросите пользователя СНАЧАЛА написать боту /start, затем добавьте его."
         )
         return
@@ -134,14 +134,12 @@ async def add_manager_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     managers = db.get_all_managers()
     for manager_id, manager_username in managers:
         if manager_username == new_username:
-            await update.message.reply_text(f"⚠️ @{new_username} уже является менеджером!")
+            await update. message.reply_text(f"⚠️ @{new_username} уже является менеджером!")
             return
 
-    # Ищем пользователя в истории сообщений (если писал боту)
-    # Пока просто показываем инструкцию
     await update.message.reply_text(
         f"📝 Чтобы добавить @{new_username} как менеджера:\n\n"
-        f"1️⃣ Попросите @{new_username} написать боту команду:   /request_manager\n"
+        f"1️⃣ Попросите @{new_username} написать боту команду:  /request_manager\n"
         f"2️⃣ Вы получите уведомление с кнопкой подтверждения\n"
         f"3️⃣ Нажмите кнопку - готово!"
     )
@@ -151,25 +149,25 @@ async def request_manager_command(update: Update, context:  ContextTypes.DEFAULT
     """Запрос на получение прав менеджера"""
     user = update.effective_user
 
-    # Проверяем что у пользователя есть username
     if not user.username:
-        await update.message.reply_text(
+        await update. message.reply_text(
             "❌ У вас не установлен username в Telegram.\n\n"
             "Установите его:  Settings → Edit Profile → Username\n"
             "Затем попробуйте снова."
         )
         return
 
-    # Проверяем, уже менеджер?
     if db.is_manager(user.id):
-        await update.message. reply_text(f"✅ Вы уже менеджер!\n\n{MANAGER_COMMANDS}")
+        await update.message. reply_text(
+            f"✅ Вы уже менеджер!\n\n{MANAGER_COMMANDS}",
+            parse_mode=ParseMode. HTML
+        )
         return
 
-    # Отправляем всем текущим менеджерам запрос
-    managers = db. get_all_managers()
+    managers = db.get_all_managers()
 
     if not managers:
-        await update. message.reply_text(
+        await update.message.reply_text(
             "⚠️ В системе пока нет менеджеров.  Обратитесь к администратору."
         )
         return
@@ -206,48 +204,43 @@ async def request_manager_command(update: Update, context:  ContextTypes.DEFAULT
         )
 
 
-async def approve_manager_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def approve_manager_command(update:  Update, context: ContextTypes. DEFAULT_TYPE):
     """Одобрить запрос на добавление менеджера"""
     user = update.effective_user
 
-    # Проверяем права
     if not db.is_manager(user.id):
-        await update.message.reply_text("❌ У вас нет прав для этой команды.")
+        await update.message. reply_text("❌ У вас нет прав для этой команды.")
         return
 
-    # Проверяем аргументы
     if not context.args or len(context.args) != 2:
         await update. message.reply_text(
-            "❌ Использование:   /approve_manager USER_ID USERNAME"
+            "❌ Использование:  /approve_manager USER_ID USERNAME"
         )
         return
 
     try:
         new_user_id = int(context.args[0])
-        new_username = context.args[1].lstrip("@")
+        new_username = context.args[1]. lstrip("@")
     except (ValueError, IndexError):
         await update.message.reply_text("❌ Неверный формат.  Проверьте команду.")
         return
 
-    # Проверяем, уже менеджер?
     if db.is_manager(new_user_id):
         await update.message.reply_text(f"⚠️ @{new_username} уже менеджер!")
         return
 
-    # Добавляем
     success = db.add_manager(new_user_id, new_username)
 
     if success:
-        # Уведомляем менеджера
         await update.message.reply_text(
             f"✅ @{new_username} успешно добавлен как менеджер!"
         )
 
-        # Уведомляем нового менеджера
         try:
-            await context.bot. send_message(
+            await context.bot.send_message(
                 chat_id=new_user_id,
-                text=f"🎉 Поздравляем!  Вы назначены менеджером.\n\n{MANAGER_COMMANDS}"
+                text=f"🎉 Поздравляем!  Вы назначены менеджером.\n\n{MANAGER_COMMANDS}",
+                parse_mode=ParseMode. HTML
             )
         except:
             pass
@@ -255,22 +248,21 @@ async def approve_manager_command(update: Update, context: ContextTypes.DEFAULT_
         await update. message.reply_text("❌ Ошибка при добавлении менеджера.")
 
 
-async def remove_manager_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def remove_manager_command(update:  Update, context: ContextTypes. DEFAULT_TYPE):
     """Удалить менеджера"""
     user = update.effective_user
 
     if not db.is_manager(user.id):
-        await update. message.reply_text("❌ У вас нет прав для этой команды.")
+        await update.message. reply_text("❌ У вас нет прав для этой команды.")
         return
 
     if not context.args or len(context.args) != 1:
-        await update.message.reply_text("❌ Использование:  /remove_manager @username")
+        await update. message.reply_text("❌ Использование: /remove_manager @username")
         return
 
     username = context.args[0].lstrip("@")
 
-    # Защита от удаления себя
-    if username == user. username:
+    if username == user.username:
         await update.message.reply_text("❌ Вы не можете удалить сами себя!")
         return
 
@@ -284,7 +276,7 @@ async def list_managers_command(update: Update, context: ContextTypes.DEFAULT_TY
     """Показать список всех менеджеров"""
     user = update.effective_user
 
-    if not db. is_manager(user.id):
+    if not db.is_manager(user.id):
         await update.message.reply_text("❌ У вас нет прав для этой команды.")
         return
 
@@ -301,7 +293,7 @@ async def list_managers_command(update: Update, context: ContextTypes.DEFAULT_TY
     for user_id, username in managers:
         message += f"• @{username}\n   <code>ID: {user_id}</code>\n\n"
 
-    message += f"<i>Всего: {len(managers)}</i>"
+    message += f"<i>Всего:  {len(managers)}</i>"
 
     await update.message.reply_text(message, parse_mode=ParseMode.HTML)
 
@@ -325,6 +317,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         chat_id=user_id,
                         text=message.text
                     )
+
+                    # Отмечаем что менеджер ��тветил - автоответы больше не нужны!
+                    db.set_manager_replied(user_id)
+
                     await message.reply_text("✅ Ответ отправлен пользователю")
                 except Exception as e:
                     await message.reply_text(f"❌ Ошибка отправки:  {str(e)}")
@@ -337,31 +333,47 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await message. reply_text(
                 "💡 Чтобы ответить пользователю:\n"
                 "Ответьте (Reply) на его сообщение\n\n"
-                f"{MANAGER_COMMANDS}"
+                f"{MANAGER_COMMANDS}",
+                parse_mode=ParseMode.HTML
             )
 
     # Если сообщение от обычного пользователя
     else:
         is_first = db.is_first_message(user.id)
+        has_manager_replied = db.has_manager_replied(user.id)
 
-        auto_reply_text = find_auto_reply(message.text, threshold=0.4)
+        # Автоответы отправляем ТОЛЬКО если менеджер еще НЕ отвечал
+        auto_reply_text = None
         auto_reply_sent = False
 
-        if auto_reply_text:
-            await message.reply_text(auto_reply_text, parse_mode=ParseMode.HTML)
-            auto_reply_sent = True
+        if not has_manager_replied:
+            auto_reply_text = find_auto_reply(message.text, threshold=0.4)
+            if auto_reply_text:
+                await message.reply_text(auto_reply_text, parse_mode=ParseMode.HTML)
+                auto_reply_sent = True
 
         # Формируем сообщение для менеджеров
         user_info = f"👤 <b>{'🆕 НОВЫЙ пользователь' if is_first else 'Сообщение от пользователя'}</b>\n\n"
         user_info += f"Имя: {user.first_name or 'Не указано'}"
         if user.last_name:
             user_info += f" {user.last_name}"
-        user_info += f"\nUsername:  @{user.username or 'не указан'}"
-        user_info += f"\nID: <code>{user. id}</code>"
+        user_info += f"\nUsername: @{user.username or 'не указан'}"
+        user_info += f"\nID:  <code>{user.id}</code>"
         user_info += f"\n\n📝 <b>Сообщение: </b>\n{message.text}"
 
-        if auto_reply_sent:
-            user_info += "\n\n🤖 <i>Автоматический ответ отправлен</i>"
+        # Показываем какой автоответ был отправлен
+        if auto_reply_sent and auto_reply_text:
+            user_info += "\n\n" + "—" * 30
+            user_info += "\n🤖 <b>Отправлен автоответ: </b>\n\n"
+            # Убираем HTML теги для читаемости в уведомлении менеджеру
+            clean_auto_reply = auto_reply_text.replace('<b>', '').replace('</b>', '').replace('<i>', '').replace('</i>', '')
+            # Обрезаем если слишком длинный
+            if len(clean_auto_reply) > 300:
+                user_info += clean_auto_reply[:300] + "..."
+            else:
+                user_info += clean_auto_reply
+        elif has_manager_replied:
+            user_info += "\n\n💬 <i>Диалог с менеджером начат (автоответы отключены)</i>"
 
         # Отправляем всем менеджерам
         managers = db.get_all_managers()

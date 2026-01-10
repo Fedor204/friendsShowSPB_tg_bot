@@ -29,7 +29,7 @@ class Database:
                 )
             """)
 
-            # Таблица для связи сообщений (чтобы отвечать правильному пользователю)
+            # Таблица для связи сообщений
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS message_mapping (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,19 +40,20 @@ class Database:
                 )
             """)
 
-            # Таблица пользователей (отслеживаем первое сообщение)
+            # Таблица польз��вателей
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER UNIQUE NOT NULL,
                     first_message_sent BOOLEAN DEFAULT 0,
+                    manager_replied BOOLEAN DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
 
             conn.commit()
 
-    def add_manager(self, user_id:  int, username: str) -> bool:
+    def add_manager(self, user_id: int, username: str) -> bool:
         """Добавить менеджера"""
         try:
             with sqlite3.connect(self.db_name) as conn:
@@ -124,6 +125,26 @@ class Database:
             else:
                 # Пользователь уже писал
                 return False
+
+    def has_manager_replied(self, user_id: int) -> bool:
+        """Проверить, отвечал ли менеджер этому пользователю"""
+        with sqlite3.connect(self. db_name) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT manager_replied FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            return result[0] == 1 if result else False
+
+    def set_manager_replied(self, user_id: int):
+        """Отметить что менеджер ответил пользователю"""
+        with sqlite3.connect(self.db_name) as conn:
+            cursor = conn.cursor()
+            # Если пользователя нет - создаём
+            cursor.execute(
+                "INSERT INTO users (user_id, manager_replied) VALUES (?, 1) "
+                "ON CONFLICT(user_id) DO UPDATE SET manager_replied = 1",
+                (user_id,)
+            )
+            conn.commit()
 
 
 # Глобальный экземпляр базы данных
