@@ -6,8 +6,8 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from database import db
-from typing import Optional
 from config import AUTO_REPLIES, MANAGER_COMMANDS, WELCOME_MESSAGE, INITIAL_MANAGERS
+from typing import Optional, Tuple
 import re
 
 
@@ -20,67 +20,58 @@ def normalize_text(text: str) -> str:
     return text. strip()
 
 
-def extract_word_roots(text: str) -> set:
-    """Извлекает корни слов"""
-    words = text.split()
-    roots = set()
-
-    stop_words = {'это', 'для', 'как', 'что', 'где', 'когда', 'можно', 'нужно',
-                  'есть', 'или', 'про', 'чем', 'будет', 'быть', 'был', 'была',
-                  'если', 'уже', 'еще', 'ещё', 'все', 'вся', 'ваш', 'наш', 'мой'}
-
-    for word in words:
-        if len(word) > 3 and word not in stop_words:
-            roots.add(word[: 4])
-            if len(word) > 5:
-                roots.add(word[: 5])
-
-    return roots
-
-
-def calculate_match_score(message_text: str, keywords: list) -> float:
-    """Вычисляет степень совпадения сообщения с ключевыми словами"""
+def find_auto_reply(message_text: str) -> Optional[Tuple[str, str]]:
+    """
+    Ищет подходящий автоответ по ключевым словам.
+    Возвращает (текст_ответа, совпавшее_ключевое_слово) или (None, None)
+    """
     message_normalized = normalize_text(message_text)
-    message_roots = extract_word_roots(message_normalized)
 
-    max_score = 0
-
-    for keyword in keywords:
-        keyword_normalized = normalize_text(keyword)
-        score = 0
-
-        if keyword_normalized in message_normalized:
-            score = 1.0
-        elif all(word in message_normalized for word in keyword_normalized. split()):
-            score = 0.9
-        else:
-            keyword_roots = extract_word_roots(keyword_normalized)
-            if keyword_roots:
-                matching_roots = message_roots.intersection(keyword_roots)
-                score = len(matching_roots) / len(keyword_roots)
-
-        max_score = max(max_score, score)
-
-    return max_score
-
-
-def find_auto_reply(message_text: str, threshold: float = 0.4) -> Optional[str]:
-    """Ищет подходящий автоответ по ключевым словам.  Возвращает текст ответа или None"""
     best_match = None
     best_score = 0
+    best_keyword = ""
 
     for reply_item in AUTO_REPLIES:
         keywords = reply_item["keywords"]
-        score = calculate_match_score(message_text, keywords)
 
-        if score > best_score:
-            best_score = score
-            best_match = reply_item
+        for keyword in keywords:
+            keyword_normalized = normalize_text(keyword)
+            score = 0
 
-    if best_score >= threshold:
-        return best_match["answer"]
+            # 1. ТОЧНОЕ совпадение (высший приоритет)
+            if keyword_normalized == message_normalized:
+                score = 100
 
-    return None
+            # 2. Ключевое слово ПОЛНОСТЬЮ содержится в сообщении
+            elif keyword_normalized in message_normalized:
+                score = 90
+
+            # 3. ВСЕ слова из ключевой фразы есть в сообщении
+            elif len(keyword_normalized. split()) > 1:
+                keyword_words = set(keyword_normalized.split())
+                message_words = set(message_normalized.split())
+                if keyword_words. issubset(message_words):
+                    score = 80
+
+            # 4. Частичное совпадение слов (для коротких ключевых слов)
+            else:
+                keyword_words = set(keyword_normalized.split())
+                message_words = set(message_normalized.split())
+                matching_words = keyword_words.intersection(message_words)
+                if matching_words:
+                    # Чем больше совпадений, тем выше балл
+                    score = (len(matching_words) / len(keyword_words)) * 50
+
+            if score > best_score:
+                best_score = score
+                best_match = reply_item
+                best_keyword = keyword
+
+    # Порог для срабатывания:  50 (точное или частичное совпадение)
+    if best_score >= 50:
+        return (best_match["answer"], best_keyword)
+
+    return (None, None)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -90,9 +81,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Автоматически добавляем начальных менеджеров
     if user.username and user.username in INITIAL_MANAGERS:
         if not db.is_manager(user.id):
-            success = db.add_manager(user.id, user.username)
+            success = db.add_manager(user. id, user.username)
             if success:
-                await update.message.reply_text(
+                await update.message. reply_text(
                     f"✅ Вы автоматически добавлены как менеджер!\n\n"
                     f"👋 Добро пожаловать, {user.first_name}!\n\n{MANAGER_COMMANDS}",
                     parse_mode=ParseMode.HTML
@@ -119,11 +110,11 @@ async def add_manager_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = update.effective_user
 
     if not db.is_manager(user.id):
-        await update.message.reply_text("❌ У вас нет прав для этой команды.")
+        await update.message. reply_text("❌ У вас нет прав для этой команды.")
         return
 
     if not context.args or len(context.args) != 1:
-        await update.message. reply_text(
+        await update. message.reply_text(
             "❌ Использование: /add_manager @username\n\n"
             "Попросите пользователя СНАЧАЛА написать боту /start, затем добавьте его."
         )
@@ -135,23 +126,23 @@ async def add_manager_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     managers = db.get_all_managers()
     for manager_id, manager_username in managers:
         if manager_username == new_username:
-            await update. message.reply_text(f"⚠️ @{new_username} уже является менеджером!")
+            await update.message.reply_text(f"⚠️ @{new_username} уже является менеджером!")
             return
 
     await update.message.reply_text(
         f"📝 Чтобы добавить @{new_username} как менеджера:\n\n"
         f"1️⃣ Попросите @{new_username} написать боту команду:  /request_manager\n"
-        f"2️⃣ Вы получите уведомление с кнопкой подтверждения\n"
-        f"3️⃣ Нажмите кнопку - готово!"
+        f"2️⃣ Вы получите уведомление с командой подтверждения\n"
+        f"3️⃣ Скопируйте и отправьте команду - готово!"
     )
 
 
 async def request_manager_command(update: Update, context:  ContextTypes.DEFAULT_TYPE):
     """Запрос на получение прав менеджера"""
-    user = update.effective_user
+    user = update. effective_user
 
     if not user.username:
-        await update. message.reply_text(
+        await update.message.reply_text(
             "❌ У вас не установлен username в Telegram.\n\n"
             "Установите его:  Settings → Edit Profile → Username\n"
             "Затем попробуйте снова."
@@ -227,7 +218,7 @@ async def approve_manager_command(update:  Update, context: ContextTypes. DEFAUL
         return
 
     if db.is_manager(new_user_id):
-        await update.message.reply_text(f"⚠️ @{new_username} уже менеджер!")
+        await update. message.reply_text(f"⚠️ @{new_username} уже менеджер!")
         return
 
     success = db.add_manager(new_user_id, new_username)
@@ -238,7 +229,7 @@ async def approve_manager_command(update:  Update, context: ContextTypes. DEFAUL
         )
 
         try:
-            await context.bot.send_message(
+            await context.bot. send_message(
                 chat_id=new_user_id,
                 text=f"🎉 Поздравляем!  Вы назначены менеджером.\n\n{MANAGER_COMMANDS}",
                 parse_mode=ParseMode. HTML
@@ -246,19 +237,19 @@ async def approve_manager_command(update:  Update, context: ContextTypes. DEFAUL
         except:
             pass
     else:
-        await update. message.reply_text("❌ Ошибка при добавлении менеджера.")
+        await update.message.reply_text("❌ Ошибка при добавлении менеджера.")
 
 
-async def remove_manager_command(update:  Update, context: ContextTypes. DEFAULT_TYPE):
+async def remove_manager_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Удалить менеджера"""
     user = update.effective_user
 
-    if not db.is_manager(user.id):
-        await update.message. reply_text("❌ У вас нет прав для этой команды.")
+    if not db. is_manager(user.id):
+        await update.message.reply_text("❌ У вас нет прав для этой команды.")
         return
 
     if not context.args or len(context.args) != 1:
-        await update. message.reply_text("❌ Использование: /remove_manager @username")
+        await update.message.reply_text("❌ Использование: /remove_manager @username")
         return
 
     username = context.args[0].lstrip("@")
@@ -275,10 +266,10 @@ async def remove_manager_command(update:  Update, context: ContextTypes. DEFAULT
 
 async def list_managers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показать список всех менеджеров"""
-    user = update.effective_user
+    user = update. effective_user
 
     if not db.is_manager(user.id):
-        await update.message.reply_text("❌ У вас нет прав для этой команды.")
+        await update. message.reply_text("❌ У вас нет прав для этой команды.")
         return
 
     managers = db.get_all_managers()
@@ -290,7 +281,7 @@ async def list_managers_command(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
 
-    message = "📋 <b>Список менеджеров: </b>\n\n"
+    message = "📋 <b>Список менеджеров:</b>\n\n"
     for user_id, username in managers:
         message += f"• @{username}\n   <code>ID: {user_id}</code>\n\n"
 
@@ -319,7 +310,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         text=message.text
                     )
 
-                    # Отмечаем что менеджер ��тветил - автоответы больше не нужны!
+                    # Отмечаем что менеджер ответил
                     db.set_manager_replied(user_id)
 
                     await message.reply_text("✅ Ответ отправлен пользователю")
@@ -345,12 +336,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Автоответы отправляем ТОЛЬКО если менеджер еще НЕ отвечал
         auto_reply_text = None
+        matched_keyword = None
         auto_reply_sent = False
 
         if not has_manager_replied:
-            auto_reply_text = find_auto_reply(message.text, threshold=0.4)
+            auto_reply_text, matched_keyword = find_auto_reply(message.text)
             if auto_reply_text:
-                await message.reply_text(auto_reply_text, parse_mode=ParseMode.HTML)
+                # Отправляем автоответ пользователю
+                await message. reply_text(auto_reply_text, parse_mode=ParseMode.HTML)
                 auto_reply_sent = True
 
         # Формируем сообщение для менеджеров
@@ -365,16 +358,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Показываем какой автоответ был отправлен
         if auto_reply_sent and auto_reply_text:
             user_info += "\n\n" + "—" * 30
-            user_info += "\n🤖 <b>Отправлен автоответ: </b>\n\n"
-            # Убираем HTML теги для читаемости в уведомлении менеджеру
+            user_info += f"\n🤖 <b>Отправлен автоответ</b> (ключ: <i>{matched_keyword}</i>):\n\n"
+            # Убираем HTML теги для читаемости
             clean_auto_reply = auto_reply_text.replace('<b>', '').replace('</b>', '').replace('<i>', '').replace('</i>', '')
             # Обрезаем если слишком длинный
-            if len(clean_auto_reply) > 300:
-                user_info += clean_auto_reply[:300] + "..."
+            if len(clean_auto_reply) > 400:
+                user_info += clean_auto_reply[:400] + "..."
             else:
                 user_info += clean_auto_reply
         elif has_manager_replied:
-            user_info += "\n\n💬 <i>Диалог с менеджером начат (автоответы отключены)</i>"
+            user_info += "\n\n💬 <i>Диалог с менеджером активен (автоответы отключены)</i>"
 
         # Отправляем всем менеджерам
         managers = db.get_all_managers()
@@ -394,7 +387,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     text=user_info,
                     parse_mode=ParseMode. HTML
                 )
-                db.save_message_mapping(sent_message.message_id, user.id, manager_id)
+                db.save_message_mapping(sent_message.message_id, user. id, manager_id)
                 sent_count += 1
             except Exception as e:
                 print(f"Ошибка отправки менеджеру @{manager_username}: {e}")
