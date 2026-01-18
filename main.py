@@ -13,6 +13,7 @@ from handlers import (
     list_managers_command,
     request_manager_command,
     approve_manager_command,
+    test_auto_command,
     handle_message
 )
 import asyncio
@@ -75,6 +76,7 @@ def main():
     application.add_handler(CommandHandler("add_manager", add_manager_command))
     application.add_handler(CommandHandler("remove_manager", remove_manager_command))
     application.add_handler(CommandHandler("list_managers", list_managers_command))
+    application.add_handler(CommandHandler("test_auto", test_auto_command))
 
     # Обработчик всех текстовых сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

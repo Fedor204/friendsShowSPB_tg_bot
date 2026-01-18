@@ -290,6 +290,40 @@ async def list_managers_command(update: Update, context: ContextTypes.DEFAULT_TY
     await update.message.reply_text(message, parse_mode=ParseMode.HTML)
 
 
+async def test_auto_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Тестирование автоответов для менеджеров"""
+    user = update.effective_user
+
+    if not db.is_manager(user.id):
+        await update.message.reply_text("❌ У вас нет прав для этой команды.")
+        return
+
+    # Получаем текст для тестирования
+    if not context.args:
+        await update.message.reply_text(
+            "❌ Использование:   /test_auto <текст сообщения>\n\n"
+            "Пример:   /test_auto сколько стоит игра?"
+        )
+        return
+
+    test_message = " ".join(context.args)
+
+    # Ищем автоответ
+    auto_reply_text, matched_keyword = find_auto_reply(test_message)
+
+    if auto_reply_text:
+        response = f"✅ <b>Найден автоответ! </b>\n\n"
+        response += f"🔑 <b>Совпавший ключ:</b> <i>{matched_keyword}</i>\n\n"
+        response += f"📝 <b>Ответ пользователю:</b>\n\n{auto_reply_text}"
+
+        await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text(
+            f"❌ Автоответ не найден для:   \"{test_message}\"\n\n"
+            f"Менеджеру придется ответить вручную."
+        )
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик всех текстовых сообщений"""
     user = update.effective_user
