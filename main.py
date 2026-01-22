@@ -15,7 +15,7 @@ from handlers import (
     approve_manager_command,
     test_auto_command,
     handle_message,
-    handle_callback_query
+    handle_callback_query, menu_command
 )
 import asyncio
 from aiohttp import web
@@ -72,6 +72,7 @@ def main():
 
     # Регистрируем обработчики команд
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("menu", menu_command))
     application.add_handler(CommandHandler("request_manager", request_manager_command))
     application.add_handler(CommandHandler("approve_manager", approve_manager_command))
     application.add_handler(CommandHandler("add_manager", add_manager_command))
