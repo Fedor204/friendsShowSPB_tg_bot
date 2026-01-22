@@ -514,29 +514,6 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup=get_back_keyboard()
         )
 
-        # Уведомляем менеджеров (без спама)
-        if not db.is_manager(user.id):
-            managers = db.get_all_managers()
-            notification = (
-                f"ℹ️ <b>Пользователь просмотрел FAQ</b>\n\n"
-                f"👤 {user.first_name or 'Неизвестно'}"
-            )
-            if user.last_name:
-                notification += f" {user.last_name}"
-            notification += f"\n📝 Username: @{user.username or 'не указан'}"
-            notification += f"\n🆔 ID: <code>{user.id}</code>"
-            notification += f"\n\n❓ Вопрос: <b>{faq_key.replace('_', ' ').title()}</b>"
-
-            for manager_id, _ in managers:
-                try:
-                    await context.bot.send_message(
-                        chat_id=manager_id,
-                        text=notification,
-                        parse_mode=ParseMode.HTML
-                    )
-                except:
-                    pass
-
     # Кнопка "Назад в меню"
     elif data == "back_to_menu":
         welcome_text = WELCOME_MESSAGE.format(first_name=user.first_name or "друг")
