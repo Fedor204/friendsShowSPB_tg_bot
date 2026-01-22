@@ -140,84 +140,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         welcome_text = WELCOME_MESSAGE.format(first_name=user.first_name or "друг")
         await update.message.reply_text(
             welcome_text,
-            parse_mode=ParseMode.HTML
-        )
-
-
-async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать главное меню (для менеджеров тоже полезно для тестирования)"""
-    user = update.effective_user
-
-    if db.is_manager(user.id):
-        text = f"🧪 <b>Тестовое меню для {user.first_name}</b>\n\nВы можете протестировать кнопки как обычный пользователь:"
-    else:
-        text = WELCOME_MESSAGE.format(first_name=user.first_name or "друг")
-
-    await update.message.reply_text(
-        text,
-        parse_mode=ParseMode.HTML,
-        reply_markup=get_main_keyboard()
-    )
-
-
-async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик нажатий на кнопки"""
-    query = update.callback_query
-    await query.answer()
-
-    user = query.from_user
-    data = query.data
-
-    # Обработка FAQ кнопок
-    if data.startswith("faq_"):
-        faq_key = data.replace("faq_", "")
-        answer_text = FAQ_ANSWERS.get(faq_key, "Информация не найдена")
-
-        # Отправляем ответ с кнопками "Назад" и "Написать менеджеру"
-        await query.edit_message_text(
-            text=answer_text,
-            parse_mode=ParseMode.HTML,
-            reply_markup=get_back_keyboard()
-        )
-
-        # Уведомляем менеджеров что пользователь посмотрел FAQ (без автоответа)
-        if not db.is_manager(user.id):
-            managers = db.get_all_managers()
-            notification = (
-                f"ℹ️ <b>Пользователь просмотрел FAQ</b>\n\n"
-                f"👤 {user.first_name or 'Неизвестно'}"
-            )
-            if user.last_name:
-                notification += f" {user.last_name}"
-            notification += f"\n📝 Username: @{user.username or 'не указан'}"
-            notification += f"\n🆔 ID: <code>{user.id}</code>"
-            notification += f"\n\n❓ Вопрос: <b>{faq_key.replace('_', ' ').title()}</b>"
-
-            for manager_id, _ in managers:
-                try:
-                    await context.bot.send_message(
-                        chat_id=manager_id,
-                        text=notification,
-                        parse_mode=ParseMode.HTML
-                    )
-                except:
-                    pass
-
-    # Кнопка "Назад в меню"
-    elif data == "back_to_menu":
-        welcome_text = WELCOME_MESSAGE.format(first_name=user.first_name or "друг")
-        await query.edit_message_text(
-            text=welcome_text,
             parse_mode=ParseMode.HTML,
             reply_markup=get_main_keyboard()
         )
 
-    # Кнопка "Написать менеджеру"
-    elif data == "contact_manager":
-        await query.edit_message_text(
-            text="✍️ <b>Напишите ваш вопрос</b>\n\nОтправьте сообщение, и менеджер ответит вам в ближайшее время.",
-            parse_mode=ParseMode.HTML
-        )
 
 
 async def test_auto_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -550,3 +476,79 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "✅ Ваше сообщение получено!\n"
                 "Наши менеджеры ответят вам в ближайшее время."
             )
+
+
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать главное меню"""
+    user = update.effective_user
+
+    if db.is_manager(user.id):
+        text = f"🧪 <b>Тестовое меню для {user.first_name}</b>\n\nВы можете протестировать кнопки как обычный пользователь:"
+    else:
+        text = WELCOME_MESSAGE.format(first_name=user.first_name or "друг")
+
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=get_main_keyboard()
+    )
+
+
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик нажатий на кнопки"""
+    query = update.callback_query
+    await query.answer()
+
+    user = query.from_user
+    data = query.data
+
+    # Обработка FAQ кнопок
+    if data.startswith("faq_"):
+        faq_key = data.replace("faq_", "")
+        answer_text = FAQ_ANSWERS.get(faq_key, "Информация не найдена")
+
+        # Отправляем ответ с кнопками "Назад" и "Написать менеджеру"
+        await query.edit_message_text(
+            text=answer_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_back_keyboard()
+        )
+
+        # Уведомляем менеджеров (без спама)
+        if not db.is_manager(user.id):
+            managers = db.get_all_managers()
+            notification = (
+                f"ℹ️ <b>Пользователь просмотрел FAQ</b>\n\n"
+                f"👤 {user.first_name or 'Неизвестно'}"
+            )
+            if user.last_name:
+                notification += f" {user.last_name}"
+            notification += f"\n📝 Username: @{user.username or 'не указан'}"
+            notification += f"\n🆔 ID: <code>{user.id}</code>"
+            notification += f"\n\n❓ Вопрос: <b>{faq_key.replace('_', ' ').title()}</b>"
+
+            for manager_id, _ in managers:
+                try:
+                    await context.bot.send_message(
+                        chat_id=manager_id,
+                        text=notification,
+                        parse_mode=ParseMode.HTML
+                    )
+                except:
+                    pass
+
+    # Кнопка "Назад в меню"
+    elif data == "back_to_menu":
+        welcome_text = WELCOME_MESSAGE.format(first_name=user.first_name or "друг")
+        await query.edit_message_text(
+            text=welcome_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_main_keyboard()
+        )
+
+    # Кнопка "Написать менеджеру"
+    elif data == "contact_manager":
+        await query.edit_message_text(
+            text="✍️ <b>Напишите ваш вопрос</b>\n\nОтправьте сообщение, и менеджер ответит вам в ближайшее время.",
+            parse_mode=ParseMode.HTML
+        )

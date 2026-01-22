@@ -8,6 +8,7 @@ from config import BOT_TOKEN, INITIAL_MANAGERS
 from database import db
 from handlers import (
     start_command,
+    menu_command,
     add_manager_command,
     remove_manager_command,
     list_managers_command,
@@ -15,7 +16,7 @@ from handlers import (
     approve_manager_command,
     test_auto_command,
     handle_message,
-    handle_callback_query, menu_command
+    handle_callback_query
 )
 import asyncio
 from aiohttp import web
@@ -88,7 +89,7 @@ def main():
 
     # Запускаем бота
     logger.info("Бот запускается...")
-    application.run_polling(allowed_updates=["message"])
+    application.run_polling(allowed_updates=["message", "callback_query"])
 
 
 if __name__ == "__main__":
