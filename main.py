@@ -3,7 +3,7 @@
 """
 
 import logging
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 from config import BOT_TOKEN, INITIAL_MANAGERS
 from database import db
 from handlers import (
@@ -14,7 +14,8 @@ from handlers import (
     request_manager_command,
     approve_manager_command,
     test_auto_command,
-    handle_message
+    handle_message,
+    handle_callback_query
 )
 import asyncio
 from aiohttp import web
@@ -77,6 +78,9 @@ def main():
     application.add_handler(CommandHandler("remove_manager", remove_manager_command))
     application.add_handler(CommandHandler("list_managers", list_managers_command))
     application.add_handler(CommandHandler("test_auto", test_auto_command))
+
+    # Обработчик нажатий на кнопки (ВАЖНО: добавить ДО текстовых сообщений!)
+    application.add_handler(CallbackQueryHandler(handle_callback_query))
 
     # Обработчик всех текстовых сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

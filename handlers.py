@@ -2,13 +2,52 @@
 Обработчики сообщений бота
 """
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from database import db
-from config import AUTO_REPLIES, MANAGER_COMMANDS, WELCOME_MESSAGE, INITIAL_MANAGERS
+from config import AUTO_REPLIES, MANAGER_COMMANDS, WELCOME_MESSAGE, INITIAL_MANAGERS, FAQ_ANSWERS
 from typing import Optional, Tuple
 import re
+
+def get_main_keyboard():
+    """Создает главную клавиатуру с FAQ кнопками"""
+    keyboard = [
+        [
+            InlineKeyboardButton("🎮 Что такое Friends Show", callback_data="faq_what_is"),
+            InlineKeyboardButton("💰 Стоимость", callback_data="faq_price")
+        ],
+        [
+            InlineKeyboardButton("⏰ Длительность", callback_data="faq_duration"),
+            InlineKeyboardButton("👥 Количество человек", callback_data="faq_people")
+        ],
+        [
+            InlineKeyboardButton("🎁 Скидки", callback_data="faq_discounts"),
+            InlineKeyboardButton("🏢 Корпоратив", callback_data="faq_corporate")
+        ],
+        [
+            InlineKeyboardButton("🚗 Выездная игра", callback_data="faq_offsite"),
+            InlineKeyboardButton("📍 Адрес", callback_data="faq_address")
+        ],
+        [
+            InlineKeyboardButton("🍕 Еда и напитки", callback_data="faq_food")
+        ],
+        [
+            InlineKeyboardButton("✍️ Написать менеджеру", callback_data="contact_manager")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_back_keyboard():
+    """Создает клавиатуру с кнопками 'Назад' и 'Написать менеджеру'"""
+    keyboard = [
+        [
+            InlineKeyboardButton("◀️ Назад в меню", callback_data="back_to_menu"),
+            InlineKeyboardButton("✍️ Написать менеджеру", callback_data="contact_manager")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 
 def normalize_text(text: str) -> str:
@@ -104,6 +143,111 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML
         )
 
+
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать главное меню (для менеджеров тоже полезно для тестирования)"""
+    user = update.effective_user
+
+    if db.is_manager(user.id):
+        text = f"🧪 <b>Тестовое меню для {user.first_name}</b>\n\nВы можете протестировать кнопки как обычный пользователь:"
+    else:
+        text = WELCOME_MESSAGE.format(first_name=user.first_name or "друг")
+
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=get_main_keyboard()
+    )
+
+
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик нажатий на кнопки"""
+    query = update.callback_query
+    await query.answer()
+
+    user = query.from_user
+    data = query.data
+
+    # Обработка FAQ кнопок
+    if data.startswith("faq_"):
+        faq_key = data.replace("faq_", "")
+        answer_text = FAQ_ANSWERS.get(faq_key, "Информация не найдена")
+
+        # Отправляем ответ с кнопками "Назад" и "Написать менеджеру"
+        await query.edit_message_text(
+            text=answer_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_back_keyboard()
+        )
+
+        # Уведомляем менеджеров что пользователь посмотрел FAQ (без автоответа)
+        if not db.is_manager(user.id):
+            managers = db.get_all_managers()
+            notification = (
+                f"ℹ️ <b>Пользователь просмотрел FAQ</b>\n\n"
+                f"👤 {user.first_name or 'Неизвестно'}"
+            )
+            if user.last_name:
+                notification += f" {user.last_name}"
+            notification += f"\n📝 Username: @{user.username or 'не указан'}"
+            notification += f"\n🆔 ID: <code>{user.id}</code>"
+            notification += f"\n\n❓ Вопрос: <b>{faq_key.replace('_', ' ').title()}</b>"
+
+            for manager_id, _ in managers:
+                try:
+                    await context.bot.send_message(
+                        chat_id=manager_id,
+                        text=notification,
+                        parse_mode=ParseMode.HTML
+                    )
+                except:
+                    pass
+
+    # Кнопка "Назад в меню"
+    elif data == "back_to_menu":
+        welcome_text = WELCOME_MESSAGE.format(first_name=user.first_name or "друг")
+        await query.edit_message_text(
+            text=welcome_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_main_keyboard()
+        )
+
+    # Кнопка "Написать менеджеру"
+    elif data == "contact_manager":
+        await query.edit_message_text(
+            text="✍️ <b>Напишите ваш вопрос</b>\n\nОтправьте сообщение, и менеджер ответит вам в ближайшее время.",
+            parse_mode=ParseMode.HTML
+        )
+
+
+async def test_auto_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Тестирование автоответов для менеджеров"""
+    user = update.effective_user
+
+    if not db.is_manager(user.id):
+        await update.message.reply_text("❌ У вас нет прав для этой команды.")
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "❌ Использование:    /test_auto <текст сообщения>\n\n"
+            "Пример:    /test_auto сколько стоит игра?"
+        )
+        return
+
+    test_message = " ".join(context.args)
+    auto_reply_text, matched_keyword = find_auto_reply(test_message)
+
+    if auto_reply_text:
+        response = f"✅ <b>Найден автоответ! </b>\n\n"
+        response += f"🔑 <b>Совпавший ключ:</b> <i>{matched_keyword}</i>\n\n"
+        response += f"📝 <b>Ответ пользователю:</b>\n\n{auto_reply_text}"
+        await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text(
+            f"❌ Автоответ не найден для:    \"{test_message}\"\n\n"
+            f"Менеджеру придется ответить вручную."
+        )
 
 async def add_manager_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Добавить нового менеджера"""
@@ -290,40 +434,6 @@ async def list_managers_command(update: Update, context: ContextTypes.DEFAULT_TY
     await update.message.reply_text(message, parse_mode=ParseMode.HTML)
 
 
-async def test_auto_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Тестирование автоответов для менеджеров"""
-    user = update.effective_user
-
-    if not db.is_manager(user.id):
-        await update.message.reply_text("❌ У вас нет прав для этой команды.")
-        return
-
-    # Получаем текст для тестирования
-    if not context.args:
-        await update.message.reply_text(
-            "❌ Использование:   /test_auto <текст сообщения>\n\n"
-            "Пример:   /test_auto сколько стоит игра?"
-        )
-        return
-
-    test_message = " ".join(context.args)
-
-    # Ищем автоответ
-    auto_reply_text, matched_keyword = find_auto_reply(test_message)
-
-    if auto_reply_text:
-        response = f"✅ <b>Найден автоответ! </b>\n\n"
-        response += f"🔑 <b>Совпавший ключ:</b> <i>{matched_keyword}</i>\n\n"
-        response += f"📝 <b>Ответ пользователю:</b>\n\n{auto_reply_text}"
-
-        await update.message.reply_text(response, parse_mode=ParseMode.HTML)
-    else:
-        await update.message.reply_text(
-            f"❌ Автоответ не найден для:   \"{test_message}\"\n\n"
-            f"Менеджеру придется ответить вручную."
-        )
-
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик всех текстовых сообщений"""
     user = update.effective_user
@@ -376,8 +486,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not has_manager_replied:
             auto_reply_text, matched_keyword = find_auto_reply(message.text)
             if auto_reply_text:
-                # Отправляем автоответ пользователю
-                await message. reply_text(auto_reply_text, parse_mode=ParseMode.HTML)
+                # Отправляем автоответ с кнопками
+                await message.reply_text(
+                    auto_reply_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=get_back_keyboard()
+                )
                 auto_reply_sent = True
 
         # Формируем сообщение для менеджеров
