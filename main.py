@@ -20,6 +20,7 @@ from handlers import (
 )
 import asyncio
 from aiohttp import web
+from telegram.request import HTTPXRequest
 #test
 # Настройка логирования
 logging.basicConfig(
@@ -69,7 +70,21 @@ async def post_init(application: Application):
 
 def main():
     """Запуск бота"""
-    application = Application. builder().token(BOT_TOKEN).post_init(post_init).build()
+
+    request = HTTPXRequest(
+        base_url="https://test.pomidorka-i-f.workers.dev/tg",
+        connect_timeout=30,
+        read_timeout=30,
+        write_timeout=30,
+        pool_timeout=30,
+    )
+    application = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .request(request)
+        .post_init(post_init)
+        .build()
+    )
 
     # Регистрируем обработчики команд
     application.add_handler(CommandHandler("start", start_command))
