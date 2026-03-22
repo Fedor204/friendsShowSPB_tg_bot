@@ -22,7 +22,7 @@ import asyncio
 from aiohttp import web
 from telegram.request import HTTPXRequest
 from telegram.ext import ExtBot
-#test
+
 # Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -80,7 +80,7 @@ def main():
     )
     bot = ExtBot(
         token=BOT_TOKEN,
-        base_url="https://test.pomidorka-i-f.workers.dev/tg",
+        base_url="https://test.pomidorka-i-f.workers.dev/tg/",
         request=request,
     )
     application = (
