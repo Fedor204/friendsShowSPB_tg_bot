@@ -404,22 +404,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         is_first = db.is_first_message(user.id)
         has_manager_replied = db.has_manager_replied(user.id)
 
-        # Автоответы отправляем ТОЛЬКО если менеджер еще НЕ отвечал
-        auto_reply_text = None
-        matched_keyword = None
-        auto_reply_sent = False
-
-        if not has_manager_replied:
-            auto_reply_text, matched_keyword = find_auto_reply(message.text)
-            if auto_reply_text:
-                # Отправляем автоответ с кнопками
-                await message.reply_text(
-                    auto_reply_text,
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=get_back_keyboard()
-                )
-                auto_reply_sent = True
-
         # Формируем сообщение для менеджеров
         user_info = f"👤 <b>{'🆕 НОВЫЙ пользователь' if is_first else 'Сообщение от пользователя'}</b>\n\n"
         user_info += f"Имя: {user.first_name or 'Не указано'}"
@@ -429,19 +413,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_info += f"\nID:  <code>{user.id}</code>"
         user_info += f"\n\n📝 <b>Сообщение: </b>\n{message.text}"
 
-        # Показываем какой автоответ был отправлен
-        if auto_reply_sent and auto_reply_text:
-            user_info += "\n\n" + "—" * 30
-            user_info += f"\n🤖 <b>Отправлен автоответ</b> (ключ: <i>{matched_keyword}</i>):\n\n"
-            # Убираем HTML теги для читаемости
-            clean_auto_reply = auto_reply_text.replace('<b>', '').replace('</b>', '').replace('<i>', '').replace('</i>', '')
-            # Обрезаем если слишком длинный
-            if len(clean_auto_reply) > 400:
-                user_info += clean_auto_reply[:400] + "..."
-            else:
-                user_info += clean_auto_reply
-        elif has_manager_replied:
-            user_info += "\n\n💬 <i>Диалог с менеджером активен (автоответы отключены)</i>"
+        if has_manager_replied:
+            user_info += "\n\n💬 <i>Диалог с менеджером активен</i>"
 
         # Отправляем всем менеджерам
         managers = db.get_all_managers()
@@ -471,7 +444,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "⚠️ Произошла ошибка при отправке сообщения.\n"
                 "Пожалуйста, попробуйте позже."
             )
-        elif is_first and not auto_reply_sent:
+        elif is_first:
             await message.reply_text(
                 "✅ Ваше сообщение получено!\n"
                 "Наши менеджеры ответят вам в ближайшее время."
